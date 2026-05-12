@@ -1,0 +1,8 @@
+gradio
+yfinance
+torch
+pandas
+numpy
+scikit-learn
+joblib
+plotly

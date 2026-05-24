@@ -59,35 +59,13 @@ def load_assets():
 def get_features(df):
     df = df.copy()
     df['Returns'] = df['Close'].pct_change()
-    df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift(1))
     df['MA20'] = df['Close'].rolling(20).mean()
     df['MA50'] = df['Close'].rolling(50).mean()
-    df['EMA12'] = df['Close'].ewm(span=12, adjust=False).mean()
-    df['EMA26'] = df['Close'].ewm(span=26, adjust=False).mean()
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
     df['RSI'] = 100 - (100 / (1 + (gain / loss)))
     df['Vol_Rel'] = df['Volume'] / df['Volume'].rolling(20).mean()
-    df['Volatility20'] = df['Returns'].rolling(20).std()
-    df['Momentum5'] = df['Close'] / df['Close'].shift(5) - 1
-    df['Momentum10'] = df['Close'] / df['Close'].shift(10) - 1
-    df['Momentum20'] = df['Close'] / df['Close'].shift(20) - 1
-    df['MA20_Dist'] = df['Close'] / df['MA20'] - 1
-    df['MA50_Dist'] = df['Close'] / df['MA50'] - 1
-    df['MACD'] = df['EMA12'] - df['EMA26']
-    df['MACD_Signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
-    df['MACD_Hist'] = df['MACD'] - df['MACD_Signal']
-    df['Range_Pct'] = (df['High'] - df['Low']) / df['Close']
-
-    # Compatibility with newer multi-stock artifacts. When market context is not
-    # available in the reverted app, keep these features neutral instead of crashing.
-    for col in [
-        'SPY_Returns', 'QQQ_Returns', 'VIX_Returns', 'Rel_SPY_5',
-        'Rel_QQQ_5', 'SPY_Momentum20', 'QQQ_Momentum20', 'VIX_Level',
-    ]:
-        if col not in df.columns:
-            df[col] = 0.0
     return df.replace([np.inf, -np.inf], np.nan).dropna()
 
 
@@ -97,6 +75,7 @@ HORIZON_DAYS = {
     "3 Months": 63,
     "6 Months": 126,
 }
+
 
 def forecast_future_price(df_feat, timeframe):
     """Train a ticker-local forward-return model and produce a price forecast."""
@@ -296,6 +275,10 @@ def run_full_analysis(ticker, amount, target_pct, loss_pct, timeframe, progress=
             <div class='m-label'>Ann. Volatility</div>
             <div class='m-val mono' style='color:{vol_color}'>{ann_volatility:.1f}%</div>
         </div>
+        <div class='m-card'>
+            <div class='m-label'>Risk/Reward</div>
+            <div class='m-val mono' style='color:{rr_color}'>1:{risk_reward:.2f}</div>
+        </div>
         <div class='m-card forecast-card'>
             <div class='m-label'>Forecast Price</div>
             <div class='m-val mono' style='color:{predicted_color}'>${predicted_price:.2f}</div>
@@ -475,7 +458,6 @@ def run_full_analysis(ticker, amount, target_pct, loss_pct, timeframe, progress=
                 <div class="ic-info"><span class="ic-label">Backtest Accuracy</span><span class="ic-val">{forecast_accuracy:.1f}% price fit</span></div>
             </div>
         </div>
-
         <div class="insight-footer" style="background:{rec_bg}; border: 1px solid {rec_border};">
             <h4 style="color:{rec_border}; margin:0 0 6px 0; font-size: 16px;">{rec_title}</h4>
             <p style="margin:0; font-size: 14px; color: var(--text-main); line-height: 1.6;">{rec_text}</p>
@@ -486,7 +468,7 @@ def run_full_analysis(ticker, amount, target_pct, loss_pct, timeframe, progress=
 # =====================================================
     # MACRO INTEL (Rich Media News Grid)
     # =====================================================
-    progress(0.85, desc="Retrieving Macro & Corporate Data...")
+    progress(0.8, desc="Retrieving Macro & Corporate Data...")
     ticker_obj = yf.Ticker(ticker)
     news_items = ticker_obj.news[:12] if ticker_obj.news else []
     
@@ -610,18 +592,14 @@ custom_css = """
     --text-main: #F8FAFC; --text-muted: #94A3B8; --border: #2A3441;
     --panel-bg: #131A2A; --green: #00ff9d; --red: #ff4d6d;
 }
-
 /* FORCE TRUE 100% WIDTH - KILL GRADIO CONSTRAINTS */
 body, .gradio-container { max-width: 100% !important; width: 100% !important; padding: 0 !important; margin: 0 !important; overflow-x: hidden; }
 footer { display: none !important; }
 .mono { font-family: 'IBM Plex Mono', monospace !important; }
-
 /* MAIN CONTENT WRAPPER */
 #main-layout { padding: 0 40px 40px 40px; max-width: 2400px; margin: 0 auto; box-sizing: border-box; }
-
 /* MODERN SAAS HEADER - EXACT SCREENSHOT MATCH */
 .pro-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 40px; background: #0B0F19; border-bottom: 1px solid var(--border); width: 100%; box-sizing: border-box; margin-bottom: 24px; }
-
 /* Left Side Header */
 .header-left { display: flex; align-items: center; gap: 20px; }
 .header-logo-img { height: 60px; width: auto; object-fit: contain; filter: drop-shadow(0 0 10px rgba(0, 255, 157, 0.2)); }
@@ -630,7 +608,6 @@ footer { display: none !important; }
 .header-title-top { font-size: 26px; font-weight: 800; color: #ffffff; line-height: 0.95; letter-spacing: 0.5px; }
 .header-title-bottom { font-size: 26px; font-weight: 800; color: var(--green); line-height: 0.95; letter-spacing: 0.5px; }
 .header-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
-
 /* Right Side Header */
 .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .header-nav { display: flex; gap: 24px; font-size: 16px; margin-bottom: 2px; }
@@ -638,18 +615,14 @@ footer { display: none !important; }
 .header-nav span.active { color: var(--text-main); font-weight: 600; }
 .header-signal-text { font-size: 13px; color: var(--text-muted); }
 .header-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 99px; border: 1px solid rgba(0, 255, 157, 0.4); color: var(--green); background: rgba(0, 255, 157, 0.05); font-size: 12px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; }
-
 /* ------------------------------------- */
-
 .sidebar-title { color: var(--text-main); font-size: 13px; font-weight: 800; margin-bottom: 12px; letter-spacing: 1px; text-transform: uppercase; }
 .panel-empty { color: var(--text-muted); font-size: 14px; text-align: center; padding: 60px 20px; border: 1px dashed var(--border); border-radius: 12px; background: rgba(255,255,255,0.01); }
-
 /* TERMINAL METRICS */
 .price-banner { display: flex; align-items: center; gap: 16px; padding: 20px 24px; border-radius: 12px; background: rgba(0,0,0,0.2); margin-bottom: 16px; border: 1px solid var(--border); }
 .pb-price { font-family: 'IBM Plex Mono', monospace; font-size: 40px; font-weight: 600; color: var(--text-main); line-height: 1; }
 .pb-change { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; padding: 4px 10px; border-radius: 6px; }
 .pb-signal { font-size: 24px; font-weight: 800; letter-spacing: 1px; margin-left: auto; text-align: right; }
-
 .m-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 16px; }
 .m-card { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
 .forecast-card { border-color: rgba(56,189,248,0.25); background: rgba(56,189,248,0.04); }
@@ -658,13 +631,11 @@ footer { display: none !important; }
 .m-val { font-size: 24px; font-weight: 600; color: var(--text-main); }
 .glow-pulse { animation: gPulse 2.5s infinite; border-color: rgba(0,255,157,0.3); background: rgba(0,255,157,0.03); }
 @keyframes gPulse { 0% { box-shadow: 0 0 0 rgba(0,255,157,0); } 50% { box-shadow: 0 0 15px rgba(0,255,157,0.1); } 100% { box-shadow: 0 0 0 rgba(0,255,157,0); } }
-
 /* SIDE-BY-SIDE PANELS */
 .analysis-container { display: flex; gap: 16px; margin-top: 16px; align-items: stretch; }
 .signal-panel, .quant-panel { background: rgba(0,0,0,0.15); padding: 24px; border-radius: 12px; border: 1px solid var(--border); width: 100%; box-sizing: border-box; }
 .flex-col { display: flex; flex-direction: column; justify-content: flex-start; height: 100%; }
 .qp-section-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-
 /* STRATEGY */
 .sp-action { text-align: center; padding: 16px; border: 1px solid; border-radius: 8px; font-size: 18px; font-weight: 800; letter-spacing: 2px; margin-bottom: 16px; background: rgba(0,0,0,0.3); }
 .sp-conf { font-size: 13px; color: var(--text-muted); font-weight: 500; display: flex; justify-content: space-between; }
@@ -674,7 +645,6 @@ footer { display: none !important; }
 .sp-item { background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; border: 1px solid var(--border); }
 .sp-lbl { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; font-weight: 600; }
 .sp-val { font-size: 15px; font-weight: 700; color: var(--text-main); }
-
 /* QUANT PANEL */
 .ind-item { margin-bottom: 28px; }
 .ind-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
@@ -695,7 +665,6 @@ footer { display: none !important; }
 .rr-bar { display: flex; height: 36px; border-radius: 8px; overflow: hidden; gap: 2px; }
 .rr-risk { background: rgba(255,77,109,0.2); display: flex; align-items: center; justify-content: center; border-radius: 8px 0 0 8px; border-right: 1px solid rgba(0,0,0,0.5); }
 .rr-gain { background: rgba(0,255,157,0.15); display: flex; align-items: center; justify-content: center; border-radius: 0 8px 8px 0; }
-
 /* IN-DEPTH INSIGHT BOARD */
 .insight-board { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-top: 16px; }
 .insight-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
@@ -707,7 +676,6 @@ footer { display: none !important; }
 .ic-label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
 .ic-val { font-size: 16px; font-weight: 700; color: var(--text-main); font-family: 'IBM Plex Mono', monospace; }
 .insight-footer { border-radius: 10px; padding: 20px; text-align: left; }
-
 /* RICH MEDIA NEWS GRID */
 .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; padding: 10px 0; }
 .news-card { display: flex; flex-direction: column; text-decoration: none; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; transition: all 0.2s ease; height: 100%; box-sizing: border-box; }
@@ -719,7 +687,6 @@ footer { display: none !important; }
 .news-card:hover { border-color: rgba(0,255,157,0.4); transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.3); }
 .news-card:hover .news-img { filter: brightness(1.1); }
 .news-card:hover .news-read { color: var(--green); }
-
 /* COMPANY PROFILE DASHBOARD */
 .prof-container { padding: 10px 0; }
 .prof-header { margin-bottom: 32px; border-bottom: 1px solid var(--border); padding-bottom: 24px; }
@@ -760,7 +727,6 @@ with gr.Blocks(
                 System standby
             </div>
         </div>
-
         <div style="display: flex; align-items: center; gap: 24px;">
             <div style="color: #94A3B8; font-size: 15px; font-weight: 500;">Market Intel</div>
             <div style="color: #F8FAFC; font-size: 15px; font-weight: 600;">Strategy Terminal</div>
@@ -772,7 +738,6 @@ with gr.Blocks(
                 </div>
             </div>
         </div>
-
     </div>
     """)
 

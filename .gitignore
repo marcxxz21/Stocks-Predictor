@@ -3,3 +3,7 @@ __pycache__/
 .venv/
 .kombai/
 *.pyc
+.venv/
+__pycache__/
+.venv/
+__pycache__/
